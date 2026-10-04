@@ -25,4 +25,9 @@ submissions/*.csv
 .idea/
 
 .env
-EOF
+
+# Araştırma çıktıları (yerel, yüzlerce MB)
+*.pkl
+
+# Yerel araştırma betikleri
+notebooks/_*.py

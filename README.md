@@ -5,7 +5,6 @@ Gdz ve Adm Elektrik Dağıtım A.Ş. tarafından düzenlenen Grid Up Datathon ç
 **Problem:** Trafo bazlı günlük elektrik tüketimini tahmin etmek.
 **Metrik:** RMSLE (düşük skor daha iyi).
 **Veri:** Ocak 2025 ile Mart 2026 arası eğitim (1.226.237 satır), Nisan ile Temmuz 2026 arası test (714.688 satır).
-**En iyi Kaggle skoru:** 1.05008
 
 ## Çözümün özeti
 
@@ -38,10 +37,43 @@ Notebooklar:
 | `07_mevsim.ipynb`               | Mevsimsellik denemeleri                        |
 | `08_gecen_yil_ayni_donem.ipynb` | Geçen yıl aynı dönem özelliği (elendi)         |
 | `09_hava_durumu.ipynb`          | Hava durumu özellik seçimi                     |
-| `11_final_submission.ipynb`     | **Final model**                                |
+| `10_final_model.ipynb`          | Final model için doğrulama ve ayar seçimi      |
+| `11_final_submission.ipynb`     | **Final model ve submission üretimi**          |
 
 
 
+
+## Veri seti
+
+Yarışma verisi Gdz ve Adm Elektrik Dağıtım A.Ş. bölgesindeki dağıtım trafolarının günlük tüketimini içeriyor.
+
+
+| Dosya                   | Satır     | Sütunlar                                       |
+| ----------------------- | --------- | ---------------------------------------------- |
+| `train.csv`             | 1.226.237 | `tanim`, `guc`, `tarih`, `tuketim`, `lokasyon` |
+| `test.csv`              | 714.688   | `id`, `tanim`, `guc`, `tarih`, `lokasyon`      |
+| `sample_submission.csv` | 714.688   | `id`, `tuketim`                                |
+
+
+
+| Sütun      | Anlamı                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------- |
+| `tanim`    | Trafo kimliği (eğitimde 5.344, testte 7.036 farklı trafo)                              |
+| `guc`      | Kurulu güç. Medyan 400, 99. yüzdelik 10.900, en büyük 35.900                           |
+| `tarih`    | Gün. Eğitim 1 Ocak 2025 ile 31 Mart 2026, test 1 Nisan 2026 ile 31 Temmuz 2026         |
+| `tuketim`  | Günlük tüketim (hedef). Medyan 1.075, 90. yüzdelik 5.064                               |
+| `lokasyon` | `İL>BÖLGE>İLÇE` hiyerarşisi. 2 il (İzmir yüzde 73, Manisa yüzde 27), 20 bölge, 30 ilçe |
+
+
+Test, eğitimden hemen sonra başlıyor ve 122 gün ileriye uzanıyor. Aylık dağılım Nisan 117.604, Mayıs 182.673, Haziran 203.279, Temmuz 211.132 satır. Trafo sayısı zamanla arttığı için test ayları ilerledikçe büyüyor. Hedefte ham değerler çok çarpık olduğu için model `log1p(tuketim)` üzerinde çalışıyor ve metrik RMSLE.
+
+Eğitim verisinde en büyük `tuketim` değeri 50.403.051, medyan 1.075. Bu fark fiziksel olarak imkansız kayıtlardan geliyor, aşağıdaki veri kalitesi bölümünde detayı var.
+
+Dış veri olarak Open Meteo'dan ilçe bazlı günlük sıcaklık (`hava_durumu.csv`), ek hava değişkenleri (`hava_ek.csv`) ve 2015 ile 2024 arası iklim normalleri (`iklim_normal_ham.csv`) çekildi. Bunlar da repoya alınmadı, `03_deneyler.ipynb` ve `09_hava_durumu.ipynb` ile yeniden üretiliyor. Final modelde yalnızca 7 günlük ortalama sıcaklık kullanıldı.
+
+## Skor seyri
+
+Kaggle skoru ilk gönderimde 1.13709, ardından 1.08157, 1.06168, 1.05487, 1.05382 ve final modelde 1.05008 oldu. Her adım tek değişkenli bir değişiklikti. Neden ve nasıl sonuç verdiğini aşağıdaki yöntemsel bulgular anlatıyor.
 
 ## Veri kalitesi bulguları
 
@@ -95,7 +127,7 @@ Yön dörtte üç doğru, büyüklük istisnasız 6 ile 13 kat abartılı. Ters 
 
 Sebebi yapısal. Kurulabilen bütün doğrulamalarda profiller 2 ile 12 aylık, gerçek testte 15 aylık. Zayıf profil rejiminde model başka sinyallere muhtaç olduğu için her ekleme büyük görünüyor, gerçek testte trafonun kendi yakın geçmişi baskın olduğu için geri kalan marjinal kalıyor.
 
-Pratik sonuç: tek seferde tek değişken değiştirdik ve yerel farkı 0.005'in altında kalan hiçbir fikri Kaggle'a göndermedik.
+
 
 ### Basitleştirme sürekli kazandırdı
 
@@ -182,7 +214,7 @@ Permütasyon testinde `son30_log_ort` karıştırıldığında skor 1.74 bozuluy
 
 Test satırlarının yüzde 22'si eğitim verisinde hiç görünmeyen trafolara ait. O segmentte elimizde sadece kurulu güç ve lokasyon var, bu ikisi tüketim seviyesinin yüzde 20'sini açıklıyor, ve segment RMSLE'si 1,86 civarında. Toplam skorun büyük kısmını bu belirliyor ve veride bulunmayan bilgiye bağlı.
 
-Sıfır tüketim günleri satırların yüzde 4,4'ü ama toplam kare hatanın yaklaşık yarısını üretiyor. Bunların çoğu sporadik arıza günleri ve statik özelliklerle öngörülemiyor.
+Sıfır tüketim günleri satırların yüzde 4,7'si ama toplam kare hatanın yaklaşık yarısını üretiyor. Bunların çoğu sporadik arıza günleri ve statik özelliklerle öngörülemiyor.
 
 Eğitim verisinde Nisan ayı sadece 64 bin satır, Temmuz 227 bin. Test'in dörtte biri Nisan ve model o ayı en az görüyor. Veride tek bir Nisan var (2025) ve o dönemde henüz az trafo raporluyordu.
 
